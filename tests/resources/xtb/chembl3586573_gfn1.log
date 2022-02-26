@@ -1,11 +1,11 @@
-      -----------------------------------------------------------      
-     |                   =====================                   |     
-     |                           x T B                           |     
-     |                   =====================                   |     
-     |                         S. Grimme                         |     
-     |          Mulliken Center for Theoretical Chemistry        |     
-     |                    University of Bonn                     |     
-      -----------------------------------------------------------      
+      -----------------------------------------------------------
+     |                   =====================                   |
+     |                           x T B                           |
+     |                   =====================                   |
+     |                         S. Grimme                         |
+     |          Mulliken Center for Theoretical Chemistry        |
+     |                    University of Bonn                     |
+      -----------------------------------------------------------
 
    * xtb version 6.4.0 (d4b70c2) compiled by 'ehlert@majestix' on 2021-02-01
 
@@ -13,17 +13,17 @@
    the terms of the GNU Lesser General Public License as published by
    the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
-   
+
    xtb is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU Lesser General Public License for more details.
-   
+
    Cite this work as:
    * C. Bannwarth, E. Caldeweyher, S. Ehlert, A. Hansen, P. Pracht,
      J. Seibert, S. Spicher, S. Grimme, WIREs Comput. Mol. Sci., 2020,
      e01493. DOI: 10.1002/wcms.1493
-   
+
    for GFN2-xTB:
    * C. Bannwarth, S. Ehlert and S. Grimme., J. Chem. Theory Comput., 2019,
      15, 1652-1671. DOI: 10.1021/acs.jctc.8b01176
@@ -36,7 +36,7 @@
    for GFN-FF:
    * S. Spicher and S. Grimme, Angew. Chem. Int. Ed., 2020, 59, 15665-15673.
      DOI: 10.1002/anie.202004239
-   
+
    for DFT-D4:
    * E. Caldeweyher, C. Bannwarth and S. Grimme, J. Chem. Phys., 2017,
      147, 034112. DOI: 10.1063/1.4993215
@@ -45,29 +45,29 @@
      DOI: 10.1063/1.5090222
    * E. Caldeweyher, J.-M. Mewes, S. Ehlert and S. Grimme, Phys. Chem. Chem. Phys.
      2020, 22, 8499-8512. DOI: 10.1039/D0CP00502A
-   
+
    for sTDA-xTB:
    * S. Grimme and C. Bannwarth, J. Chem. Phys., 2016, 145, 054103.
      DOI: 10.1063/1.4959605
-   
+
    in the mass-spec context:
    * V. Asgeirsson, C. Bauer and S. Grimme, Chem. Sci., 2017, 8, 4879.
      DOI: 10.1039/c7sc00601b
    * J. Koopman and S. Grimme, ACS Omega 2019, 4, 12, 15120-15133.
      DOI: 10.1021/acsomega.9b02011
-   
+
    for metadynamics refer to:
    * S. Grimme, J. Chem. Theory Comput., 2019, 155, 2847-2862
      DOI: 10.1021/acs.jctc.9b00143
-   
+
    with help from (in alphabetical order)
    P. Atkinson, C. Bannwarth, F. Bohle, G. Brandenburg, E. Caldeweyher
    M. Checinski, S. Dohm, S. Ehlert, S. Ehrlich, I. Gerasimov, J. Koopman
    C. Lavinge, S. Lehtola, F. März, M. Müller, F. Musil, H. Neugebauer
    J. Pisarek, P. Pracht, J. Seibert, P. Shushkov, S. Spicher, M. Stahn
    T. Strunk, J. Stückrath, T. Rose, and J. Unsleber
-   
- * started run on 2021/08/25 at 08:35:33.228     
+
+ * started run on 2021/08/25 at 08:35:33.228
 
            -------------------------------------------------
           |                Calculation Setup                |
@@ -333,7 +333,7 @@ Topologies differ in bond orders
 Writing corrected topology to xtbtopo.sdf
 
  dipole moment from electron density (au)
-     X       Y       Z   
+     X       Y       Z
    1.3745   0.2927   0.1968  total (Debye):    3.607
 
 
@@ -344,7 +344,7 @@ Writing corrected topology to xtbtopo.sdf
            -------------------------------------------------
 
 ------------------------------------------------------------------------
- * finished run on 2021/08/25 at 08:35:33.305     
+ * finished run on 2021/08/25 at 08:35:33.305
 ------------------------------------------------------------------------
  total:
  * wall-time:     0 d,  0 h,  0 min,  0.077 sec
@@ -354,4 +354,3 @@ Writing corrected topology to xtbtopo.sdf
  * wall-time:     0 d,  0 h,  0 min,  0.044 sec
  *  cpu-time:     0 d,  0 h,  0 min,  0.512 sec
  * ratio c/w:    11.532 speedup
-
