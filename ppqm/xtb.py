@@ -318,8 +318,8 @@ def get_properties_from_axyzc(
         f.write(inputstr)
 
     # Set charge in file
-    with open(temp_scr / ".CHRG", "w") as f:
-        f.write(str(charge))
+    # with open(temp_scr / ".CHRG", "w") as f:
+    #     f.write(str(charge))
 
     # Overwrite threads
     env.set_threads(n_threads)
@@ -329,6 +329,8 @@ def get_properties_from_axyzc(
 
     if options is not None:
         cmd += parse_options(options)
+
+    cmd += ["--chrg", f"{charge}"]
 
     # Merge to string
     cmd = " ".join(cmd)
@@ -1149,7 +1151,7 @@ def get_wbo(scr=None):
     filename = scr / "wbo"
 
     if not filename.is_file():
-        return None
+        return None, None
 
     # Read WBO file
     with open(filename, "r") as f:
