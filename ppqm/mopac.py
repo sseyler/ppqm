@@ -3,7 +3,6 @@ import os
 from collections import ChainMap
 
 import numpy as np
-from numpy.core.numeric import indices
 
 from . import chembridge, constants, linesio, shell
 from .calculator import BaseCalculator
@@ -414,12 +413,12 @@ def is_converged(lines):
 def get_properties_optimize_uncoverged(lines):
     """ """
 
-     #          CURRENT BEST VALUE OF HEAT OF FORMATION =    -29.666150
-     # precise mullik pm3 eps=4.8 cycles=200 charge=1
-     # TITLE
-     #
-     #  C     0.96490232 +1  -2.18922956 +1  -3.22046573 +1
-     #  N     0.51142500 +1  -1.88778997 +1  -1.83719469 +1
+    #          CURRENT BEST VALUE OF HEAT OF FORMATION =    -29.666150
+    # precise mullik pm3 eps=4.8 cycles=200 charge=1
+    # TITLE
+    #
+    #  C     0.96490232 +1  -2.18922956 +1  -3.22046573 +1
+    #  N     0.51142500 +1  -1.88778997 +1  -1.83719469 +1
 
     # Current best value of heat of formation
     idx_hof = "HEAT OF FORMATION"
