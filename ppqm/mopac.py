@@ -3,6 +3,7 @@ import os
 from collections import ChainMap
 
 import numpy as np
+from numpy.core.numeric import indices
 
 from . import chembridge, constants, linesio, shell
 from .calculator import BaseCalculator
@@ -20,7 +21,7 @@ from .calculator import BaseCalculator
 MOPAC_METHOD = "PM6"
 MOPAC_VALID_METHODS = ["PM3", "PM6", "PM7"]
 MOPAC_CMD = "mopac"
-MOPAC_ATOMLINE = "{atom:2s} {x} {opt_flag} {y} {opt_flag} {z} {opt_flag}"
+MOPAC_ATOMLINE = "{atom:2s} {x:.8f} {opt_flag} {y:.8f} {opt_flag} {z:.8f} {opt_flag}"
 MOPAC_INPUT_EXTENSION = "mop"
 MOPAC_OUTPUT_EXTENSION = "out"
 MOPAC_KEYWORD_CHARGE = "{charge}"
@@ -76,7 +77,13 @@ class MopacCalculator(BaseCalculator):
         self._run_file()
 
         calculations = self._read_file()
-        results = [get_properties(output_lines) for output_lines in calculations]
+        _logger.debug("done with mopac calculation")
+        _logger.debug("Reading output...")
+
+        results = list()
+        for _, output_lines in enumerate(calculations):
+            result = get_properties(output_lines)
+            results.append(result)
 
         return results
 
@@ -269,7 +276,7 @@ def properties_from_many_axyzc(
         f.write(input_texts)
 
     # Run file
-    run_mopac(filename, scr=scr)
+    run_mopac(filename, scr=scr, cmd=cmd)
 
     # Return properties
     properties_list = []
@@ -368,17 +375,17 @@ def get_properties(lines):
         properties = get_properties_1scf(lines)
 
     else:
-        properties = get_properties_optimize(lines)
+        if is_converged(lines):
+            properties = get_properties_optimize(lines)
+        else:
+            _logger.warning("optimization is unconverged")
+            properties = get_properties_optimize_uncoverged(lines)
 
     return properties
 
 
 def is_1scf(lines):
-    """
-
-    Check if output is a single point or optimization
-
-    """
+    """ Check if output is a single point or optimization """
 
     keyword = "1SCF WAS USED"
     stoppattern = "CYCLE"
@@ -389,6 +396,68 @@ def is_1scf(lines):
         return False
 
     return True
+
+
+def is_converged(lines):
+    """ """
+
+    keyword = "MULLIKEN POPULATIONS AND CHARGES"
+    stoppattern = "CYCLE"
+    idx = linesio.get_rev_index(lines, keyword, stoppattern=stoppattern)
+
+    if idx is None:
+        return False
+
+    return True
+
+
+def get_properties_optimize_uncoverged(lines):
+    """ """
+
+     #          CURRENT BEST VALUE OF HEAT OF FORMATION =    -29.666150
+     # precise mullik pm3 eps=4.8 cycles=200 charge=1
+     # TITLE
+     #
+     #  C     0.96490232 +1  -2.18922956 +1  -3.22046573 +1
+     #  N     0.51142500 +1  -1.88778997 +1  -1.83719469 +1
+
+    # Current best value of heat of formation
+    idx_hof = "HEAT OF FORMATION"
+    keywords = ["Empirical Formula", "HEAT OF FORMATION"]
+    indices = linesio.get_indices_patterns(lines, keywords)
+
+    idx_atoms = indices[0]
+    idx_hof = indices[1]
+
+    line = lines[idx_atoms]
+    n_atoms = int(line.split()[-2])
+
+    idx_coord = idx_hof + 4
+
+    atoms = []
+    coords = []
+
+    for i in range(idx_coord, idx_coord + n_atoms):
+        line = lines[i]
+        line = line.split()
+
+        atom = line[0]
+        x = float(line[1])
+        y = float(line[3])
+        z = float(line[5])
+
+        atoms.append(atom)
+        coords.append([x, y, z])
+
+    energy = lines[idx_hof].split()[-1]
+    energy = float(energy)
+
+    properties = dict(
+        h=energy,
+        coord=np.array(coords),
+    )
+
+    return properties
 
 
 def get_properties_optimize(lines):
@@ -413,7 +482,7 @@ def get_properties_optimize(lines):
     properties["h"] = value
 
     # optimized coordinates
-    i = linesio.get_rev_index(lines, "CARTESIAN")
+    i = linesio.get_rev_index(lines, "CARTESIAN COORDINATES")
 
     line = lines[i]
     if i is not None and "ATOM LIST" in line:
