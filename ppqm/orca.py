@@ -222,7 +222,7 @@ def get_properties_from_axyzc(
     spin,
     options=None,
     scr=constants.SCR,
-    keep_files=False,
+    keep_files=True,
     cmd=ORCA_CMD,
     filename=ORCA_FILENAME,
     **kwargs,
