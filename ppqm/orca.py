@@ -1,7 +1,7 @@
 """
 ORCA wrapper functions
 """
-
+import copy
 import functools
 import logging
 import pathlib
@@ -21,6 +21,7 @@ ORCA_FILENAME = "_tmp_orca_input.inp"
 COLUMN_COORD = "coord"
 COLUMN_SCF_CONVERGED = "scf_converged"
 COLUMN_SCF_ENERGY = "scf_energy"
+COLUMN_INNER_ENERGY = "internal_energy"
 COLUMN_GIBBS_FREE_ENERGY = "gibbs_free_energy"
 COLUMN_ENTHALPY = "enthalpy"
 COLUMN_ENTROPY = "entropy"
@@ -348,9 +349,10 @@ def read_properties(lines, atom_number, options):
 
     if "Freq" in options or "NumFreq" in options:
         readers.append(get_vibrational_frequencies)
-        readers.append(get_gibbs_free_energy)
-        readers.append(get_enthalpy)
-        readers.append(get_entropy)
+        # readers.append(get_gibbs_free_energy)
+        # readers.append(get_enthalpy)
+        # readers.append(get_entropy)
+        readers.append(get_thermal_energies)
 
     # these are always calculated by orca
     # always reported unless the print level is reduced
@@ -448,6 +450,103 @@ def get_vibrational_frequencies(lines, atom_number):
     vibrational_frequencies = [float(line.split()[1]) for line in lines[start:stop]]
 
     return {COLUMN_VIBRATIONAL_FREQUENCIES: vibrational_frequencies}
+
+
+def get_thermal_energies(lines, atom_number):
+    """ Read internal (thermal) energies and entropies; compute enthalpy and Gibbs free energy"""
+    kt = 1.0  # Default value of kB*T; set by T read from THERMOCHEMISTRY section
+
+    free_energies = {
+        COLUMN_INNER_ENERGY: None,
+        COLUMN_ENTHALPY: None,
+        COLUMN_GIBBS_FREE_ENERGY: None,
+        COLUMN_ENTROPY: None
+    }
+
+    internal_energy = {
+        'elect': None,
+        'zpe': None,
+        'vibra': None,
+        'rotat': None,
+        'trans': None,
+        'total': None
+    }
+
+    enthalpy = copy.deepcopy(internal_energy)
+    gibbs_free_energy = copy.deepcopy(internal_energy)
+    entropy = copy.deepcopy(internal_energy)
+    entropy['zpe'] = 0.0  # There is no "Zero-point entropy"
+
+    for line in lines:
+        if "THERMOCHEMISTRY AT" in line:
+            temperature = float(line.split()[2][:-1])
+            kt = temperature * units.k_kcalmolkelvin
+        elif "Electronic energy                ..." in line:
+            internal_energy['elect'] = float(line.split()[3]) * units.hartree_to_kcalmol
+        elif "Zero point energy                ..." in line:
+            internal_energy['zpe'] = float(line.split()[4]) * units.hartree_to_kcalmol
+        elif "Thermal vibrational correction   ..." in line:
+            internal_energy['vibra'] = float(line.split()[4]) * units.hartree_to_kcalmol
+        elif "Thermal rotational correction    ..." in line:
+            internal_energy['rotat'] = float(line.split()[4]) * units.hartree_to_kcalmol
+        elif "Thermal translational correction ..." in line:
+            internal_energy['trans'] = float(line.split()[4]) * units.hartree_to_kcalmol
+        elif "Total thermal energy" in line:
+            internal_energy['total'] = float(line.split()[3]) * units.hartree_to_kcalmol
+
+        # Orca already multiplies entropies by temperature to get units of energy
+        elif "Electronic entropy                ..." in line:
+            entropy['elect'] = float(line.split()[3]) * units.hartree_to_kcalmol
+        elif "Vibrational entropy               ..." in line:
+            entropy['vibra'] = float(line.split()[3]) * units.hartree_to_kcalmol
+        elif "Rotational entropy                ..." in line:
+            entropy['rotat'] = float(line.split()[3]) * units.hartree_to_kcalmol
+        elif "Translational entropy             ..." in line:
+            entropy['trans'] = float(line.split()[3]) * units.hartree_to_kcalmol
+        elif "Final entropy term                ..." in line:
+            entropy['total'] = float(line.split()[4]) * units.hartree_to_kcalmol
+            break
+
+    for key, U in internal_energy.items():
+        enthalpy[key] = U + kt
+        gibbs_free_energy[key] = enthalpy[key] - entropy[key]
+
+    free_energies[COLUMN_INNER_ENERGY] = internal_energy
+    free_energies[COLUMN_ENTHALPY] = enthalpy
+    free_energies[COLUMN_GIBBS_FREE_ENERGY] = gibbs_free_energy
+    free_energies[COLUMN_ENTROPY] = entropy
+    free_energies['thermo'] = _make_thermo_table(free_energies)
+    return free_energies
+
+
+def _make_thermo_table(free_energies):
+    """Organize free_energies dictionary into thermo table"""
+    thermo = np.zeros((5, 6))
+    for energy, d in free_energies.items():
+        if energy is 'internal_energy':
+            j = 0
+        elif energy is 'enthalpy':
+            j = 1
+        elif energy is 'gibbs_free_energy':
+            j = 2
+        elif energy is 'heat_capacity_v':
+            j = 3
+        elif energy is 'heat_capacity_p':
+            j = 4
+        elif energy is 'entropy':
+            j = 5
+        for key, value in d.items():
+            if key is 'elect':
+                thermo[0, j] = value
+            elif key is 'trans':
+                thermo[1, j] = value
+            elif key is 'rotat':
+                thermo[2, j] = value
+            elif key is 'vibra':
+                thermo[3, j] = value
+            elif key is 'total':
+                thermo[4, j] = value
+    return thermo
 
 
 def get_gibbs_free_energy(lines, atom_number):
