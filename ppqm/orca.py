@@ -515,38 +515,8 @@ def get_thermal_energies(lines, atom_number):
     free_energies[COLUMN_ENTHALPY] = enthalpy
     free_energies[COLUMN_GIBBS_FREE_ENERGY] = gibbs_free_energy
     free_energies[COLUMN_ENTROPY] = entropy
-    free_energies['thermo'] = _make_thermo_table(free_energies)
+    # free_energies['thermo'] = _make_thermo_table(free_energies)
     return free_energies
-
-
-def _make_thermo_table(free_energies):
-    """Organize free_energies dictionary into thermo table"""
-    thermo = np.zeros((5, 6))
-    for energy, d in free_energies.items():
-        if energy is 'internal_energy':
-            j = 0
-        elif energy is 'enthalpy':
-            j = 1
-        elif energy is 'gibbs_free_energy':
-            j = 2
-        elif energy is 'heat_capacity_v':
-            j = 3
-        elif energy is 'heat_capacity_p':
-            j = 4
-        elif energy is 'entropy':
-            j = 5
-        for key, value in d.items():
-            if key is 'elect':
-                thermo[0, j] = value
-            elif key is 'trans':
-                thermo[1, j] = value
-            elif key is 'rotat':
-                thermo[2, j] = value
-            elif key is 'vibra':
-                thermo[3, j] = value
-            elif key is 'total':
-                thermo[4, j] = value
-    return thermo
 
 
 def get_gibbs_free_energy(lines, atom_number):
