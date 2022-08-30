@@ -158,11 +158,6 @@ def properties_from_axyzc(
     # Call GAMESS
     stdout, stderr = run_gamess(inptxt, **kwargs)
 
-    stdout_filename = os.path.join(constants.SCR, 'calculation.out')
-    print(stdout_filename)
-    with open(stdout_filename, 'w') as f:
-        f.write(stdout)
-
     # TODO Check stderr
 
     stdout = stdout.split("\n")
