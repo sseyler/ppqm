@@ -158,6 +158,11 @@ def properties_from_axyzc(
     # Call GAMESS
     stdout, stderr = run_gamess(inptxt, **kwargs)
 
+    stdout_filename = os.path.join(constants.SCR, 'calculation.out')
+    print(stdout_filename)
+    with open(stdout_filename, 'w') as f:
+        f.write(stdout)
+
     # TODO Check stderr
 
     stdout = stdout.split("\n")
@@ -237,7 +242,7 @@ def run_gamess(
     filename=GAMESS_FILENAME,
     gamess_scr="~/scr",
     gamess_userscr="~/scr",
-    post_clean=True,
+    post_clean=False,
     pre_clean=True,
     debug=False,
 ):
@@ -274,6 +279,10 @@ def run_gamess(
         clean(gamess_scr, filename)
         if gamess_scr != gamess_userscr:
             clean(gamess_userscr, filename)
+
+    stdout_filename = os.path.join(scr, 'calculation.out')
+    with open(stdout_filename, 'w') as f:
+        f.write(stdout)
 
     return stdout, stderr
 
