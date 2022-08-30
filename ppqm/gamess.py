@@ -247,7 +247,7 @@ def run_gamess(
     # create filenames in userscr filename in this function should be using
     # tempfile, if filename is None
 
-    assert env.command_exists(cmd), f"Could not find {cmd} in your enviroment"
+    assert env.command_exists(cmd), f"Could not find {cmd} in your environment"
 
     if not filename.endswith(".inp"):
         filename += ".inp"
@@ -275,7 +275,8 @@ def run_gamess(
         if gamess_scr != gamess_userscr:
             clean(gamess_userscr, filename)
 
-    stdout_filename = os.path.join(scr, 'calculation.out')
+    stdout_filename = os.path.splitext(filename)[0] + '.out'
+    stdout_filename = os.path.join(scr, stdout_filename)
     with open(stdout_filename, 'w') as f:
         f.write(stdout)
 
@@ -552,14 +553,16 @@ def get_properties_vibration(lines):
     idx = linesio.get_index(lines, "TOTAL NUMBER OF ATOMS")
     line = lines[idx]
     line = line.split("=")
+    n_atoms = int(line[-1])
 
-    # Get heat of formation
+    # Get heat of formation (in kcal/mol)
     idx = linesio.get_rev_index(lines, "HEAT OF FORMATION IS")
-    line = lines[idx]
-    line = line.split()
-
-    # energy in kcal/mol
-    hof = float(line[4])
+    if n_atoms == 1 and idx is None:
+        hof = 0.0
+    else:
+        line = lines[idx]
+        line = line.split()
+        hof = float(line[4])
 
     # Check linear
     idx = linesio.get_index(
