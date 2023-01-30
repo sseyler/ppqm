@@ -123,6 +123,7 @@ class GamessCalculator(BaseCalculator):
         options_prime["contrl"]["icharg"] = GAMESS_KEYWORD_CHARGE
 
         properties_list = []
+        io_files_list = []
         n_confs = molobj.GetNumConformers()
 
         atoms, _, charge = chembridge.molobj_to_axyzc(molobj, atom_type="str")
@@ -130,13 +131,14 @@ class GamessCalculator(BaseCalculator):
         for conf_idx in range(n_confs):
 
             coord = chembridge.molobj_get_coordinates(molobj, idx=conf_idx)
-            properties = properties_from_axyzc(
+            properties, (inptxt, stdout, stderr) = properties_from_axyzc(
                 atoms, coord, charge, options_prime, **self.gamess_options
             )
 
             properties_list.append(properties)
+            io_files_list.append((inptxt, stdout, stderr))
 
-        return properties_list
+        return properties_list, io_files_list
 
     def __repr__(self):
         return "GamessCalc(cmd={self.cmd},scr={self.scr},met={self.method})"
@@ -166,8 +168,9 @@ def properties_from_axyzc(
         return stdout
 
     properties = get_properties(stdout)
+    io_files = (inptxt, stdout, stderr)
 
-    return properties
+    return properties, io_files
 
 
 def prepare_atoms(atoms, coordinates):
