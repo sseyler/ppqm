@@ -131,12 +131,12 @@ class GamessCalculator(BaseCalculator):
         for conf_idx in range(n_confs):
 
             coord = chembridge.molobj_get_coordinates(molobj, idx=conf_idx)
-            properties, (inptxt, stdout, stderr) = properties_from_axyzc(
+            properties, io_files = properties_from_axyzc(
                 atoms, coord, charge, options_prime, **self.gamess_options
             )
 
             properties_list.append(properties)
-            io_files_list.append((inptxt, stdout, stderr))
+            io_files_list.append(io_files)
 
         return properties_list, io_files_list
 
@@ -160,15 +160,15 @@ def properties_from_axyzc(
     # Call GAMESS
     stdout, stderr = run_gamess(inptxt, **kwargs)
 
-    # TODO Check stderr
+    io_files = {'inp': inptxt, 'out': stdout, 'err': stderr}
 
+    # TODO Check stderr
     stdout = stdout.split("\n")
 
     if return_stdout:
         return stdout
 
     properties = get_properties(stdout)
-    io_files = (inptxt, stdout, stderr)
 
     return properties, io_files
 
