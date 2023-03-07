@@ -1,3 +1,4 @@
+import logging
 import os
 from collections import ChainMap
 
@@ -27,6 +28,8 @@ MOPAC_FILENAME = "_tmp_mopac." + MOPAC_INPUT_EXTENSION
 
 MOPAC_DEFAULT_OPTIONS = {"precise": None, "mullik": None}
 
+_logger = logging.getLogger("mopac")
+
 
 class MopacCalculator(BaseCalculator):
     """"""
@@ -34,21 +37,17 @@ class MopacCalculator(BaseCalculator):
     def __init__(
         self,
         cmd=MOPAC_CMD,
-        method=MOPAC_METHOD,
         filename=MOPAC_FILENAME,
         scr=constants.SCR,
         options=MOPAC_DEFAULT_OPTIONS,
+        n_cores=None,
+        show_progress=False,
     ):
         """"""
 
         super().__init__(scr=scr)
 
-        assert (
-            method in MOPAC_VALID_METHODS
-        ), f"MOPAC does not support {method}"
-
         self.cmd = cmd
-        self.method = method
 
         # Constants
         self.filename = filename
@@ -58,48 +57,28 @@ class MopacCalculator(BaseCalculator):
 
         return
 
-    def set_method(self, method):
-        self.method = method
-        return
-
-    def get_method(self):
-        return self.method
-
-    def set_solvent(self):
-
-        return
-
-    def get_solvent(self):
-
-        return
-
     def calculate(self, molobj, options):
 
         # Merge options
         options_prime = ChainMap(options, self.options)
         options_prime = dict(options_prime)
         options_prime["charge"] = MOPAC_KEYWORD_CHARGE
-        options_prime[self.method] = None
 
-        input_string = self._get_input_str(
-            molobj, options_prime, opt_flag=True
-        )
+        input_string = self._get_input_str(molobj, options_prime, opt_flag=True)
 
         filename = self.scr / self.filename
 
         with open(filename, "w") as f:
             f.write(input_string)
 
+        _logger.debug(f"{self.scr} {self.filename} {self.cmd}")
         # Run mopac
         self._run_file()
 
         calculations = self._read_file()
+        results = [get_properties(output_lines) for output_lines in calculations]
 
-        for output_lines in calculations:
-            properties = get_properties(output_lines)
-            yield properties
-
-        return
+        return results
 
     def _generate_options(self, optimize=True, hessian=False, gradient=False):
         """ Generate options for calculation types """
@@ -116,26 +95,6 @@ class MopacCalculator(BaseCalculator):
 
         return options
 
-    # def optimize_axyzc(
-    #     self,
-    #     atoms,
-    #     coords,
-    #     charge,
-    # ):
-    #     """ INCOMPLETE """
-    #
-    #     # TODO Get header?
-    #
-    #     header_prime = header.format(
-    #         method=self.method, charge=charge, title=""
-    #     )
-    #
-    #     properties = self.calculate_axyzc(
-    #         atoms, coords, header_prime, optimize=True
-    #     )
-    #
-    #     return properties
-
     def _get_input_str(self, molobj, options, title="", opt_flag=False):
         """
         Create MOPAC input string from molobj
@@ -143,16 +102,14 @@ class MopacCalculator(BaseCalculator):
 
         n_confs = molobj.GetNumConformers()
 
-        atoms, _, charge = chembridge.molobj_to_axyzc(molobj, atom_type="str")
+        atoms, _, charge = chembridge.get_axyzc(molobj, atomfmt=str)
         header = get_header(options)
 
         txt = []
         for i in range(n_confs):
 
-            coord = chembridge.molobj_to_coordinates(molobj, idx=i)
-            header_prime = header.format(
-                charge=charge, title=f"{title}_Conf_{i}"
-            )
+            coord = chembridge.get_coordinates(molobj, confid=i)
+            header_prime = header.format(charge=charge, title=f"{title}_Conf_{i}")
             tx = get_input(atoms, coord, header_prime, opt_flag=opt_flag)
             txt.append(tx)
 
@@ -164,7 +121,7 @@ class MopacCalculator(BaseCalculator):
 
         runcmd = f"{self.cmd} {self.filename}"
 
-        stdout, stderr = shell.execute(runcmd, chdir=self.scr)
+        stdout, stderr = shell.execute(runcmd, cwd=self.scr)
 
         # TODO Check stderr and stdout
 
@@ -176,10 +133,12 @@ class MopacCalculator(BaseCalculator):
         filename = str(filename)
         filename = filename.replace(".mop", ".out")
 
-        print(filename)
-
         with open(filename, "r") as f:
             lines = f.readlines()
+
+        # Check for erros
+        if has_error(lines):
+            return []
 
         molecule_lines = []
 
@@ -198,17 +157,17 @@ class MopacCalculator(BaseCalculator):
         return
 
     def __repr__(self):
-        this = f"MopacCalc(met={self.method}, scr={self.scr}, cmd={self.cmd})"
+        this = f"MopacCalc(scr={self.scr}, cmd={self.cmd})"
         return this
 
 
-def run_mopac(filename, cmd=MOPAC_CMD, scr=None, debug=False):
-    """"""
+def run_mopac(filename, cmd=MOPAC_CMD, scr=None):
+    """ Run mopac on filename, inside scr directory"""
 
     command = [cmd, filename]
     command = " ".join(command)
 
-    stdout, stderr = shell.execute(command, chdir=scr)
+    stdout, stderr = shell.execute(command, cwd=scr)
 
     # TODO Check stdout and stderr for error and return False
 
@@ -242,7 +201,7 @@ def get_header(options):
 
 
 def get_input(atoms, coords, header, opt_flag=False):
-    """"""
+    """ Generate input text for MOPAC calculation """
 
     flag: int = 1 if opt_flag else 0
 
@@ -250,9 +209,7 @@ def get_input(atoms, coords, header, opt_flag=False):
     txt += "\n"
 
     for atom, coord in zip(atoms, coords):
-        line = MOPAC_ATOMLINE.format(
-            atom=atom, x=coord[0], y=coord[1], z=coord[2], opt_flag=flag
-        )
+        line = MOPAC_ATOMLINE.format(atom=atom, x=coord[0], y=coord[1], z=coord[2], opt_flag=flag)
 
         txt += line + "\n"
 
@@ -262,11 +219,9 @@ def get_input(atoms, coords, header, opt_flag=False):
 
 
 def properties_from_axyzc(atoms, coords, charge, header, **kwargs):
-    """"""
+    """ Calculate properties for atoms, coord and charge  """
 
-    properties_list = properties_from_many_axyzc(
-        [atoms], [coords], [charge], header, **kwargs
-    )
+    properties_list = properties_from_many_axyzc([atoms], [coords], [charge], header, **kwargs)
 
     properties = properties_list[0]
 
@@ -283,19 +238,17 @@ def properties_from_many_axyzc(
     cmd=MOPAC_CMD,
     filename=MOPAC_FILENAME,
     scr=None,
-    debug=False,
 ):
     """
+    Calculate properties from a series of atoms, coord and charges. Written as one input file for MOPAC.
 
-    header requires {charge} in string for formatting
+    NOTE: header requires {charge} in string for formatting
 
     """
 
     input_texts = list()
 
-    for i, (atoms, coords, charge) in enumerate(
-        zip(atoms_list, coords_list, charge_list)
-    ):
+    for i, (atoms, coords, charge) in enumerate(zip(atoms_list, coords_list, charge_list)):
 
         if titles is None:
             title = ""
@@ -316,7 +269,7 @@ def properties_from_many_axyzc(
         f.write(input_texts)
 
     # Run file
-    run_mopac(filename, scr=scr, debug=debug)
+    run_mopac(filename, scr=scr)
 
     # Return properties
     properties_list = []
@@ -358,6 +311,50 @@ def read_output(filename, scr=None, translate_filename=True):
     return
 
 
+def has_error(lines):
+    #
+    #  *  Errors detected in keywords.  Job stopped here to avoid wasting time.
+    #  *
+    #  *******************************************************************************
+    #
+    #  ******************************************************************************
+    #  *                                                                            *
+    #  *     Error and normal termination messages reported in this calculation     *
+    #  *                                                                            *
+    #  * UNRECOGNIZED KEY-WORDS: (GFN=1 ALPB=WATER)                                 *
+    #  * IF THESE ARE DEBUG KEYWORDS, ADD THE KEYWORD "DEBUG".                      *
+    #  * JOB ENDED NORMALLY                                                         *
+    #  *                                                                            *
+    #  ******************************************************************************
+    #
+    #
+    #
+    #  TOTAL JOB TIME:             0.00 SECONDS
+
+    keywords = [
+        "UNRECOGNIZED",
+        "Error",
+        "error",
+    ]
+
+    idxs = linesio.get_rev_indices_patterns(lines, keywords, maxiter=50)
+
+    for idx in idxs:
+
+        if not idx:
+            continue
+
+        msg = lines[idx]
+        msg = msg.replace("*", "")
+        msg = msg.strip()
+        _logger.error(msg)
+
+    if any(idxs):
+        return True
+
+    return False
+
+
 def get_properties(lines):
     """
     TODO Check common errors
@@ -386,7 +383,7 @@ def is_1scf(lines):
     keyword = "1SCF WAS USED"
     stoppattern = "CYCLE"
 
-    idx = linesio.get_indexes_with_stop(lines, keyword, stoppattern)
+    idx = linesio.get_indices(lines, keyword, stoppattern=stoppattern)
 
     if idx is None or len(idx) == 0:
         return False

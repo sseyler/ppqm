@@ -18,46 +18,111 @@ def readlines_reverse(filename):
         yield line[::-1]
 
 
-def get_index(lines, pattern, offset=None, n_lines=None, stoppattern=None):
+def enumerate_reversed(lines, max_lines=None, length=None):
 
-    if offset is None:
-        offset = 0
+    if length is None:
+        length = len(lines)
 
-    if n_lines is None:
-        n_lines = len(lines)
+    if max_lines is None:
+        iterator = reversed(range(length))
+    else:
+        iterator = reversed(range(min(length, max_lines)))
 
-    for i in range(offset, n_lines):
+    for index in iterator:
+        yield index, lines[index]
 
-        if pattern in lines[i]:
+
+def get_index(lines, pattern, stoppattern=None, maxiter=None):
+
+    for i, line in enumerate(lines):
+
+        if pattern in line:
             return i
 
-        if stoppattern and stoppattern in lines[i]:
+        if stoppattern and stoppattern in line:
+            return None
+
+        if maxiter and i > maxiter:
             return None
 
     return None
 
 
-def reverse_enum(L, max_lines=None, lenl=None):
+def get_indices(lines, pattern, stoppattern=None):
 
-    if lenl is None:
-        lenl = len(L)
+    idxs = []
 
-    if max_lines is None:
-        iterator = reversed(range(lenl))
-    else:
-        iterator = reversed(range(min(lenl, max_lines)))
+    for i, line in enumerate(lines):
 
-    for index in iterator:
-        yield index, L[index]
+        if pattern in line:
+            idxs.append(i)
+
+        if stoppattern and stoppattern in line:
+            break
+
+    return idxs
 
 
-def get_rev_index(
-    lines, pattern, max_lines=None, lenl=None, stoppattern=False
-):
+def get_indices_patterns(lines, patterns, stoppattern=None):
 
-    for i, line in reverse_enum(lines, max_lines=max_lines):
+    n_patterns = len(patterns)
+    i_patterns = list(range(n_patterns))
 
-        if line.find(pattern) != -1:
+    idxs = [None] * n_patterns
+
+    for i, line in enumerate(lines):
+
+        for ip in i_patterns:
+
+            pattern = patterns[ip]
+
+            if pattern in line:
+                idxs[ip] = i
+                i_patterns.remove(ip)
+
+        if stoppattern and stoppattern in line:
+            break
+
+    return idxs
+
+
+def get_indices_pattern(lines, pattern, num_lines, offset):
+    """Processes the output file of the QM software used to
+    find the first occurence of a specifie pattern. Useful
+    if this block will be in the file only once and if there
+    is no line that explicitly indicates the end of the block.
+
+    Args:
+        lines (list):
+            Log file of the QM software to be processed.
+        pattern (str):
+            The pattern of the block.
+        num_lines (int):
+            How many line should be read.
+        offset (int):
+            How many lines are between the pattern and the first line of the block.
+
+    Returns:
+        list: Indices of the first and the last line of the block (including the offset).
+    """
+
+    idxs = [None] * 2
+
+    for i, line in enumerate(lines):
+        if pattern in line:
+            # only go with first occurence
+            idxs[0] = i + offset
+            idxs[1] = i + num_lines + offset
+            break
+
+    return idxs
+
+
+def get_rev_index(lines, pattern, stoppattern=None):
+
+    for i, line in enumerate_reversed(lines):
+
+        if pattern in line:
             return i
 
         if stoppattern and stoppattern in line:
@@ -66,40 +131,23 @@ def get_rev_index(
     return None
 
 
-def get_indexes(lines, pattern):
+def get_rev_indices_patterns(lines, patterns, stoppattern=None, maxiter=None):
 
-    idxs = []
+    n_patterns = len(patterns)
+    i_patterns = list(range(n_patterns))
 
-    for i, line in enumerate(lines):
-        if pattern in line:
-            idxs.append(i)
+    idxs = [None] * n_patterns
 
-    return idxs
+    # TODO Better way of admin how many lines are read
+    n_read = 0
 
+    for i, line in enumerate_reversed(lines):
 
-def get_indexes_with_stop(lines, pattern, stoppattern):
-
-    idxs = []
-
-    for i, line in enumerate(lines):
-        if pattern in line:
-            idxs.append(i)
-            continue
-
-        if stoppattern in line:
+        if stoppattern and stoppattern in line:
             break
 
-    return idxs
-
-
-def get_indexes_patterns(lines, patterns):
-
-    n_patterns = len(patterns)
-    i_patterns = list(range(n_patterns))
-
-    idxs = [None] * n_patterns
-
-    for i, line in enumerate(lines):
+        if maxiter and n_read > maxiter:
+            break
 
         for ip in i_patterns:
 
@@ -109,24 +157,8 @@ def get_indexes_patterns(lines, patterns):
                 idxs[ip] = i
                 i_patterns.remove(ip)
 
-    return idxs
+        n_read += 1
 
-
-def get_rev_indexes(lines, patterns):
-
-    n_patterns = len(patterns)
-    i_patterns = list(range(n_patterns))
-
-    idxs = [None] * n_patterns
-
-    for i, line in reverse_enum(lines):
-
-        for ip in i_patterns:
-
-            pattern = patterns[ip]
-
-            if pattern in line:
-                idxs[ip] = i
-                i_patterns.remove(ip)
+        continue
 
     return idxs

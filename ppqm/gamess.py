@@ -29,7 +29,7 @@ COLUMN_TOTAL_CHARGE = "total_charge"
 COLUMN_DIPOLE_VEC = "dipole"
 COLUMN_DIPOLE_TOTAL = "dipole_total"
 
-_logger = logging.getLogger("ppqm.gamess")
+_logger = logging.getLogger("gamess")
 
 
 class GamessCalculator(BaseCalculator):
@@ -40,6 +40,8 @@ class GamessCalculator(BaseCalculator):
         gamess_userscr=GAMESS_USERSCR,
         filename=GAMESS_FILENAME,
         method_options=GAMESS_DEFAULT_OPTIONS,
+        n_cores=None,
+        show_progress=False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -59,7 +61,7 @@ class GamessCalculator(BaseCalculator):
             "scr": self.scr,
             "gamess_scr": gamess_scr,
             "gamess_userscr": gamess_userscr,
-            "filename": self.filename
+            "filename": self.filename,
         }
 
         self._health_check()
@@ -126,7 +128,7 @@ class GamessCalculator(BaseCalculator):
         io_files_list = []
         n_confs = molobj.GetNumConformers()
 
-        atoms, _, charge = chembridge.molobj_to_axyzc(molobj, atom_type="str")
+        atoms, _, charge = chembridge.get_axyzc(molobj, atomfmt=str)
 
         for conf_idx in range(n_confs):
 
@@ -141,13 +143,11 @@ class GamessCalculator(BaseCalculator):
         return properties_list, io_files_list
 
     def __repr__(self):
-        return "GamessCalc(cmd={self.cmd},scr={self.scr},met={self.method})"
+        return f"GamessCalc(cmd={self.cmd},scr={self.scr})"
 
 
-def properties_from_axyzc(
-    atoms, coords, charge, options, return_stdout=False, **kwargs
-):
-    """"""
+def properties_from_axyzc(atoms, coords, charge, options, return_stdout=False, **kwargs):
+    """ """
 
     # Prepare input
     header = get_header(options)
@@ -179,7 +179,7 @@ def prepare_atoms(atoms, coordinates):
     line = "{:2s}    {:2.1f}    {:f}     {:f}    {:f}"
 
     for atom, coord in zip(atoms, coordinates):
-        iat = chembridge.int_atom(atom)
+        iat = chembridge.get_atom_int(atom)
         lines.append(line.format(atom, iat, *coord))
 
     lines = [" $data", "Title", "C1"] + lines + [" $end"]
@@ -268,10 +268,9 @@ def run_gamess(
     command = [cmd, filename]
     command = " ".join(command)
 
-    _logger.debug(f"scr {scr}")
-    _logger.debug(f"cmd {command}")
+    _logger.debug(f"{scr} {command}")
 
-    stdout, stderr = shell.execute(command, chdir=scr)
+    stdout, stderr = shell.execute(command, cwd=scr)
 
     if post_clean:
         clean(gamess_scr, filename)
@@ -340,6 +339,14 @@ def get_errors(lines):
         msg["error"] = line + ". Only multiplicity 1 allowed."
         return msg
 
+    key = "ERROR"
+    idx = linesio.get_index(lines, key, stoppattern=safeword)
+    if idx is not None:
+        line = lines[idx]
+        line = line.replace("***", "").strip()
+        msg["error"] = line
+        return msg
+
     idx = linesio.get_rev_index(
         lines,
         "FAILURE TO LOCATE STATIONARY POINT, TOO MANY STEPS TAKEN",
@@ -363,7 +370,10 @@ def get_errors(lines):
     return msg
 
 
-def get_properties(lines):
+def get_properties(lines, options=None):
+    """
+    Read GAMESS output based on calculation options
+    """
 
     # TODO Better keywords
     # TODO Make a reader list?
@@ -545,7 +555,9 @@ def get_properties_vibration(lines):
 
     properties = {}
 
-    idx = linesio.get_rev_index(lines, "SCF DOES NOT CONVERGE AT VIB", stoppattern="END OF PROPERTY EVALUATION")
+    idx = linesio.get_rev_index(
+        lines, "SCF DOES NOT CONVERGE AT VIB", stoppattern="END OF PROPERTY EVALUATION"
+    )
 
     if idx is not None:
         properties["error"] = "Unable to vibrate structure"
@@ -568,9 +580,7 @@ def get_properties_vibration(lines):
         hof = float(line[4])
 
     # Check linear
-    idx = linesio.get_index(
-        lines, "THIS MOLECULE IS RECOGNIZED AS BEING LINEAR"
-    )
+    idx = linesio.get_index(lines, "THIS MOLECULE IS RECOGNIZED AS BEING LINEAR")
 
     is_linear = idx is not None
 
@@ -633,9 +643,7 @@ def get_properties_orbitals(lines):
 
     idx_start = linesio.get_index(lines, "EIGENVECTORS")
     idx_start += 4
-    idx_end = linesio.get_index(
-        lines, "END OF RHF CALCULATION", offset=idx_start
-    )
+    idx_end = linesio.get_index(lines, "END OF RHF CALCULATION")
 
     energies = []
 
@@ -702,11 +710,7 @@ def get_properties_solvation(lines):
     line = lines[idx + 4].split()
     total_interaction = float(line[-2])
 
-    total_non_polar = (
-        pierotti_cavitation_energy
-        + dispersion_free_energy
-        + repulsion_free_energy
-    )
+    total_non_polar = pierotti_cavitation_energy + dispersion_free_energy + repulsion_free_energy
 
     idx = linesio.get_index(lines, "CHARGE OF MOLECULE")
     line = lines[idx]

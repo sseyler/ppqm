@@ -1,17 +1,14 @@
-import copy
-
 import numpy as np
 import pytest
-from context import CONFIG
+import rmsd
+from context import MOPAC_OPTIONS, RESOURCES
 
 from ppqm import chembridge, mopac, tasks
 
-# TODO use tempfile
 
-MOPAC_OPTIONS = {
-    "scr": CONFIG["scr"]["scr"],
-    "cmd": CONFIG["mopac"]["cmd"],
-}
+def _get_options(scr):
+    mopac_options = {"scr": scr, **MOPAC_OPTIONS}
+    return mopac_options
 
 
 def test_optimize_water_and_get_energy(tmpdir):
@@ -20,20 +17,19 @@ def test_optimize_water_and_get_energy(tmpdir):
 
     # Get molecule
     n_conformers = 2
-    molobj = tasks.generate_conformers(
-        smi, max_conf=n_conformers, min_conf=n_conformers
-    )
+    molobj = tasks.generate_conformers(smi, n_conformers=n_conformers)
 
-    mopac_options = copy.deepcopy(MOPAC_OPTIONS)
-    mopac_options["scr"] = tmpdir
+    assert molobj.GetNumAtoms() == 3
+
+    mopac_options = _get_options(tmpdir)
 
     # Get mopac calculator
-    method = "PM6"
-    calc = mopac.MopacCalculator(method=method, **mopac_options)
+    calculation_options = {"PM6": None}
+    calc = mopac.MopacCalculator(**mopac_options)
 
     # Optimize water
     properties_per_conformer = calc.optimize(
-        molobj, return_copy=False, return_properties=True
+        molobj, options=calculation_options, return_copy=False, return_properties=True
     )
 
     assert len(properties_per_conformer) == n_conformers
@@ -44,15 +40,13 @@ def test_optimize_water_and_get_energy(tmpdir):
 
         assert pytest.approx(-54.30636, rel=1e-2) == enthalpy_of_formation
 
-    return
-
 
 def test_multiple_molecules():
 
     return
 
 
-def test_multiple_molecules_with_error():
+def test_multiple_molecules_with_error(tmpdir):
     """
     Test for calculating multiple molecules, and error handling for one
     molecule crashing.
@@ -65,8 +59,7 @@ def test_multiple_molecules_with_error():
         "cmd": "mopac",
         "optimize": True,
         "filename": "mopac_error",
-        "scr": MOPAC_OPTIONS["scr"],
-        "debug": True,
+        "scr": tmpdir,
     }
 
     smis = ["O", "N", "CC", "CC", "CCO"]
@@ -83,11 +76,9 @@ def test_multiple_molecules_with_error():
 
     for i, smi in enumerate(smis):
 
-        molobj = tasks.generate_conformers(smi, max_conf=1, min_conf=1)
+        molobj = tasks.generate_conformers(smi, n_conformers=1)
 
-        atoms, coords, charge = chembridge.molobj_to_axyzc(
-            molobj, atom_type=str
-        )
+        atoms, coords, charge = chembridge.get_axyzc(molobj, atomfmt=str)
 
         if i == 2:
             coords[0, 0] = 0.01
@@ -132,7 +123,7 @@ def test_read_properties():
     assert result_list[0]["h"] is not None
     assert not np.isnan(result_list[0]["h"])
 
-    # Could not read error molecule
+    # Could not read error molecule idx=2
     assert np.isnan(result_list[error_idx]["h"])
 
     return
@@ -140,37 +131,30 @@ def test_read_properties():
 
 def test_xyz_usage(tmpdir):
 
-    mopac_options = copy.deepcopy(MOPAC_OPTIONS)
-    mopac_options["scr"] = tmpdir
+    mopac_options = _get_options(tmpdir)
 
-    smi = "O"
+    xyz_file = RESOURCES / "compounds/CHEMBL1234757.xyz"
+
     method = "PM3"
 
-    # Get molecule
-    molobj = tasks.generate_conformers(smi, max_conf=1, min_conf=1)
-
     # Get XYZ
-    atoms, coords, charge = chembridge.molobj_to_axyzc(molobj, atom_type=str)
+    atoms, coords = rmsd.get_coordinates_xyz(xyz_file)
+    charge = 0
 
     # Header
     title = "test"
     header = f"{method} MULLIK PRECISE charge={{charge}} \nTITLE {title}\n"
 
     # Optimize coords
-    properties = mopac.properties_from_axyzc(
-        atoms, coords, charge, header, **mopac_options
-    )
+    properties = mopac.properties_from_axyzc(atoms, coords, charge, header, **mopac_options)
 
     # Check energy
     # energy in kcal/mol
-    water_atomization = -50.88394
+    water_atomization = -131.09284
     assert pytest.approx(water_atomization, rel=1e-2) == properties["h"]
-
-    return
 
 
 def test_options():
-
     options = dict()
     options["pm6"] = None
     options["1scf"] = None
@@ -183,7 +167,3 @@ def test_options():
     assert type(header) == str
     assert "Test Mol" in header
     assert len(header.split("\n")) == 3
-
-
-if __name__ == "__main__":
-    test_optimize_water_and_get_energy()

@@ -1,25 +1,24 @@
-python = python
-LINE_LENGTH = 79
-BLACKARGS = --line-length ${LINE_LENGTH}
+python=python
+mamba=mamba
+pkg=ppqm
 
-FLAKEARGS = \
-	--remove-all-unused-imports \
-	--remove-unused-variables \
-	--expand-star-imports
 
-src=ppqm/*.py tests/*.py
+env:
+	${mamba} env create -f ./environment.yml -p ./env
 
-lint:
-	${python} -m isort --check-only ${src}
-	${python} -m flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-	${python} -m flake8 . --count --exit-zero --max-complexity=10 --statistics
-	${python} -m autoflake --check ${FLAKEARGS} ${src}
-	${python} -m black --check ${BLACKARGS} ${src}
+env_interactive:
+	${mamba} env create -f ./environment_interactive.yml -p ./env
 
-format:
-	${python} -m isort ${src}
-	${python} -m autoflake --in-place ${FLAKEARGS} ${src}
-	${python} -m black ${BLACKARGS} ${src}
+setup-dev:
+	pre-commit install
 
 test:
 	${python} -m pytest -vrs tests
+
+cov:
+	${python} -m pytest -vrs --cov=${pkg} --cov-report html tests
+
+diff-report:
+	git diff '@{2 month ago}' HEAD > change_month.diff
+	grep "smiles =" tests/*py > molecules.txt
+	ls "tests/resources/compounds/" >> molecules.txt
